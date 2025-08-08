@@ -5,7 +5,7 @@ const customerAddressController = require('../controllers/customerAddressControl
 const verifyToken = require('../middleware/authMiddleware');
 
 // Customer routes
-router.post('/register', customerController.registerCustomer);
+router.post('/register', verifyToken, customerController.registerCustomer);
 router.post('/login', customerController.loginCustomer);
 router.get('/', verifyToken, customerController.getAllCustomers);
 router.get('/:id', verifyToken, customerController.getCustomerById);

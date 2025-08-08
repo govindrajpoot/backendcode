@@ -1,9 +1,10 @@
 const Order = require('../models/Order');
 const Customer = require('../models/Customer');
 
-// Create a new order
+// Create a new order (user-specific)
 const createOrder = async (req, res) => {
   try {
+    const userId = req.user.id; // Get user ID from authenticated request
     const {
       customerId,
       productInformation,
@@ -17,26 +18,36 @@ const createOrder = async (req, res) => {
       specialInstructions
     } = req.body;
 
-    // Validate customer exists
-    const customer = await Customer.findById(customerId);
+    // Validate customer exists and belongs to this user
+    const customer = await Customer.findOne({ _id: customerId, userId });
     if (!customer) {
-      return res.status(404).json({ message: 'Customer not found' });
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Customer not found or not authorized' 
+      });
     }
 
     // Validate required fields
     if (!customerId || !productInformation || !quantity || !numberOfBoxes || 
         !orderDate || !weight || !orderValue || !productDescription || !dimensions) {
-      return res.status(400).json({ message: 'All required fields must be provided' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'All required fields must be provided' 
+      });
     }
 
     // Validate dimensions
     if (!dimensions.length || !dimensions.width || !dimensions.height) {
-      return res.status(400).json({ message: 'All dimension fields are required' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'All dimension fields are required' 
+      });
     }
 
-    // Create new order
+    // Create new order with user association
     const newOrder = new Order({
       customerId,
+      userId,
       productInformation,
       quantity,
       numberOfBoxes,
@@ -69,10 +80,12 @@ const createOrder = async (req, res) => {
   }
 };
 
-// Get all orders
+// Get all orders for the authenticated user
 const getAllOrders = async (req, res) => {
   try {
-    const orders = await Order.find()
+    const userId = req.user.id;
+    
+    const orders = await Order.find({ userId })
       .populate('customerId', 'name email phone')
       .sort({ createdAt: -1 });
 
@@ -91,18 +104,19 @@ const getAllOrders = async (req, res) => {
   }
 };
 
-// Get order by ID
+// Get order by ID (user-specific)
 const getOrderById = async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user.id;
 
-    const order = await Order.findById(id)
+    const order = await Order.findOne({ _id: id, userId })
       .populate('customerId', 'name email phone');
 
     if (!order) {
       return res.status(404).json({ 
         success: false, 
-        message: 'Order not found' 
+        message: 'Order not found or not authorized' 
       });
     }
 
@@ -120,12 +134,22 @@ const getOrderById = async (req, res) => {
   }
 };
 
-// Get orders by customer ID
+// Get orders by customer ID (user-specific)
 const getOrdersByCustomer = async (req, res) => {
   try {
     const { customerId } = req.params;
+    const userId = req.user.id;
 
-    const orders = await Order.find({ customerId })
+    // Verify customer belongs to this user
+    const customer = await Customer.findOne({ _id: customerId, userId });
+    if (!customer) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Customer not found or not authorized' 
+      });
+    }
+
+    const orders = await Order.find({ customerId, userId })
       .populate('customerId', 'name email phone')
       .sort({ createdAt: -1 });
 
@@ -144,10 +168,11 @@ const getOrdersByCustomer = async (req, res) => {
   }
 };
 
-// Update order status
+// Update order status (user-specific)
 const updateOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user.id;
     const { orderStatus } = req.body;
 
     const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
@@ -158,8 +183,8 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
-    const order = await Order.findByIdAndUpdate(
-      id,
+    const order = await Order.findOneAndUpdate(
+      { _id: id, userId },
       { orderStatus },
       { new: true }
     ).populate('customerId', 'name email phone');
@@ -167,7 +192,7 @@ const updateOrderStatus = async (req, res) => {
     if (!order) {
       return res.status(404).json({ 
         success: false, 
-        message: 'Order not found' 
+        message: 'Order not found or not authorized' 
       });
     }
 
@@ -186,18 +211,20 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
-// Update order details
+// Update order details (user-specific)
 const updateOrder = async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user.id;
     const updateData = req.body;
 
     // Remove fields that shouldn't be updated
     delete updateData._id;
     delete updateData.createdAt;
+    delete updateData.userId;
 
-    const order = await Order.findByIdAndUpdate(
-      id,
+    const order = await Order.findOneAndUpdate(
+      { _id: id, userId },
       updateData,
       { new: true, runValidators: true }
     ).populate('customerId', 'name email phone');
@@ -205,7 +232,7 @@ const updateOrder = async (req, res) => {
     if (!order) {
       return res.status(404).json({ 
         success: false, 
-        message: 'Order not found' 
+        message: 'Order not found or not authorized' 
       });
     }
 
@@ -224,17 +251,18 @@ const updateOrder = async (req, res) => {
   }
 };
 
-// Delete order
+// Delete order (user-specific)
 const deleteOrder = async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user.id;
 
-    const order = await Order.findByIdAndDelete(id);
+    const order = await Order.findOneAndDelete({ _id: id, userId });
 
     if (!order) {
       return res.status(404).json({ 
         success: false, 
-        message: 'Order not found' 
+        message: 'Order not found or not authorized' 
       });
     }
 

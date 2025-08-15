@@ -56,10 +56,6 @@ exports.createShipment = async (req, res) => {
       });
     }
 
-    // Handle file uploads
-    const images = req.files?.images ? req.files.images.map(file => file.path) : [];
-    const videos = req.files?.videos ? req.files.videos.map(file => file.path) : [];
-
     // Create shipment
     const shipment = new Shipment({
       orderId,
@@ -71,8 +67,6 @@ exports.createShipment = async (req, res) => {
       numberOfBoxes,
       trackingNumber,
       trackingLink,
-      images,
-      videos,
       dispatchPersonName,
       receiverName,
       notes

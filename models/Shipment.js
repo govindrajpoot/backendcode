@@ -21,6 +21,29 @@ const shipmentSchema = new mongoose.Schema({
     ref: 'CustomerAddress',
     required: true
   },
+  // Complete address details stored directly
+  shippingAddressDetails: {
+    addressLine: {
+      type: String,
+      required: true
+    },
+    city: {
+      type: String,
+      required: true
+    },
+    pinCode: {
+      type: String,
+      required: true
+    },
+    state: {
+      type: String,
+      required: true
+    },
+    fullAddress: {
+      type: String,
+      required: true
+    }
+  },
   courierService: {
     type: String,
     required: true,

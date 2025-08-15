@@ -3,7 +3,7 @@ const Customer = require('../models/Customer');
 const CustomerAddress = require('../models/CustomerAddress');
 const Order = require('../models/Order');
 
-// Create bulk shipments for single order to multiple addresses
+// Create bulk shipments for an order
 exports.createBulkShipments = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -13,7 +13,7 @@ exports.createBulkShipments = async (req, res) => {
     if (!orderId || !customerId || !shipments || !Array.isArray(shipments) || shipments.length === 0) {
       return res.status(400).json({
         status: false,
-        message: 'Order ID, Customer ID, and shipments array are required'
+        message: 'orderId, customerId, and shipments array are required'
       });
     }
 
@@ -35,9 +35,8 @@ exports.createBulkShipments = async (req, res) => {
       });
     }
 
-    // Process each shipment
     const createdShipments = [];
-    
+
     for (const shipmentData of shipments) {
       const {
         shippingAddress,
@@ -48,11 +47,18 @@ exports.createBulkShipments = async (req, res) => {
         trackingLink,
         dispatchPersonName,
         receiverName,
-        notes,
-        quantity // Quantity of items for this address
+        notes
       } = shipmentData;
 
-      // Verify shipping address belongs to customer
+      // Validation for each shipment
+      if (!shippingAddress || !courierService || !shippingCost || !numberOfBoxes || !dispatchPersonName || !receiverName) {
+        return res.status(400).json({
+          status: false,
+          message: 'Each shipment must include shippingAddress, courierService, shippingCost, numberOfBoxes, dispatchPersonName, and receiverName'
+        });
+      }
+
+      // Fetch complete address details
       const address = await CustomerAddress.findOne({ _id: shippingAddress, customerId });
       if (!address) {
         return res.status(404).json({
@@ -61,12 +67,19 @@ exports.createBulkShipments = async (req, res) => {
         });
       }
 
-      // Create individual shipment
+      // Create shipment with complete address details
       const shipment = new Shipment({
         orderId,
         customerId,
         userId,
         shippingAddress,
+        shippingAddressDetails: {
+          addressLine: address.addressName,
+          city: address.city,
+          pinCode: address.pinCode,
+          state: address.state,
+          fullAddress: address.fullAddress
+        },
         courierService,
         shippingCost,
         numberOfBoxes,
@@ -74,27 +87,24 @@ exports.createBulkShipments = async (req, res) => {
         trackingLink,
         dispatchPersonName,
         receiverName,
-        notes,
-        quantity: quantity || 1
+        notes
       });
 
       await shipment.save();
       
-      // Populate related data
+      // Populate for response
       await shipment.populate([
         { path: 'orderId', select: 'orderNumber totalAmount' },
-        { path: 'customerId', select: 'name email phone' },
-        { path: 'shippingAddress', select: 'addressName fullAddress' }
+        { path: 'customerId', select: 'name email phone' }
       ]);
-
+      
       createdShipments.push(shipment);
     }
 
     res.status(201).json({
       status: true,
-      message: `${createdShipments.length} shipments created successfully`,
-      orderId,
-      totalShipments: createdShipments.length,
+      message: 'Bulk shipments created successfully',
+      count: createdShipments.length,
       shipments: createdShipments
     });
 
@@ -108,30 +118,20 @@ exports.createBulkShipments = async (req, res) => {
   }
 };
 
-// Get all shipments for a specific order
+// Get all shipments for an order
 exports.getOrderShipments = async (req, res) => {
   try {
     const { orderId } = req.params;
     const userId = req.user.id;
 
-    // Verify order belongs to user
-    const order = await Order.findOne({ _id: orderId, userId });
-    if (!order) {
-      return res.status(404).json({
-        status: false,
-        message: 'Order not found or not authorized'
-      });
-    }
-
     const shipments = await Shipment.find({ orderId, userId })
+      .populate('orderId', 'orderNumber totalAmount')
       .populate('customerId', 'name email phone')
-      .populate('shippingAddress', 'addressName fullAddress')
       .sort({ createdAt: -1 });
 
     res.status(200).json({
       status: true,
       count: shipments.length,
-      orderId,
       shipments
     });
 

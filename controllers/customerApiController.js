@@ -15,27 +15,63 @@ const addOrUpdateCustomer = async (req, res) => {
       });
     }
 
-    // Check if customer exists with same name, email, phone for this user
-    let customer = await Customer.findOne({
+    // Check if email or phone already exists for this user
+    const existingCustomer = await Customer.findOne({
       userId,
       $or: [
-        { name: name.trim() },
         { email: email?.trim() || '' },
         { phone: phone.trim() }
       ]
     });
 
-    if (!customer) {
-      // Create new customer
-      customer = new Customer({
-        name: name.trim(),
-        email: email?.trim() || '',
-        phone: phone.trim(),
-        password: 'default123',
-        userId
+    if (existingCustomer) {
+      let message = 'Customer already registered with ';
+      if (existingCustomer.email === email?.trim()) {
+        message += 'email: ' + email;
+      } else if (existingCustomer.phone === phone.trim()) {
+        message += 'phone: ' + phone;
+      }
+      
+      return res.status(409).json({
+        status: false,
+        message: message,
+        existingCustomer: {
+          id: existingCustomer._id,
+          name: existingCustomer.name,
+          email: existingCustomer.email,
+          phone: existingCustomer.phone
+        }
       });
-      await customer.save();
     }
+
+    // Check if name already exists
+    const existingName = await Customer.findOne({
+      userId,
+      name: name.trim()
+    });
+
+    if (existingName) {
+      return res.status(409).json({
+        status: false,
+        message: 'Customer already registered with name: ' + name,
+        existingCustomer: {
+          id: existingName._id,
+          name: existingName.name,
+          email: existingName.email,
+          phone: existingName.phone
+        }
+      });
+    }
+
+    // Create new customer
+    const customer = new Customer({
+      name: name.trim(),
+      email: email?.trim() || '',
+      phone: phone.trim(),
+      password: 'default123',
+      userId
+    });
+    await customer.save();
 
     // Process addresses
     const savedAddresses = [];
@@ -136,6 +172,39 @@ const getCustomerDetails = async (req, res) => {
     const { customerId } = req.params;
     const userId = req.user.id;
 
+    // Check if customerId is 'allcustomers' to fetch all customers
+    if (customerId === 'allcustomers') {
+      const customers = await Customer.find({ userId }).sort({ createdAt: -1 });
+      
+      const customersWithAddresses = await Promise.all(
+        customers.map(async (customer) => {
+          const addresses = await CustomerAddress.find({ customerId: customer._id }).sort({ isPrimary: -1 });
+          return {
+            id: customer._id,
+            name: customer.name,
+            email: customer.email,
+            phone: customer.phone,
+            addresses: addresses.map(addr => ({
+              id: addr._id,
+              addressLine: addr.addressName,
+              city: addr.city,
+              pinCode: addr.pinCode,
+              state: addr.state,
+              primary: addr.isPrimary,
+              fullAddress: addr.fullAddress
+            }))
+          };
+        })
+      );
+
+      return res.status(200).json({
+        status: true,
+        count: customersWithAddresses.length,
+        customers: customersWithAddresses
+      });
+    }
+
+    // Original single customer logic
     const customer = await Customer.findOne({ _id: customerId, userId });
     if (!customer) {
       return res.status(404).json({
@@ -160,7 +229,8 @@ const getCustomerDetails = async (req, res) => {
         city: addr.city,
         pinCode: addr.pinCode,
         state: addr.state,
-        primary: addr.isPrimary
+        primary: addr.isPrimary,
+        fullAddress: addr.fullAddress
       }))
     });
 

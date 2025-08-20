@@ -80,18 +80,90 @@ const createOrder = async (req, res) => {
   }
 };
 
-// Get all orders for the authenticated user
+// Get all orders for the authenticated user with search/filter
 const getAllOrders = async (req, res) => {
   try {
     const userId = req.user.id;
-    
-    const orders = await Order.find({ userId })
+    const {
+      search,
+      customerId,
+      orderStatus,
+      productInformation,
+      minOrderValue,
+      maxOrderValue,
+      startDate,
+      endDate,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+      page = 1,
+      limit = 10
+    } = req.query;
+
+    // Build filter object
+    let filter = { userId };
+
+    // Text search across multiple fields
+    if (search) {
+      filter.$or = [
+        { productInformation: { $regex: search, $options: 'i' } },
+        { productDescription: { $regex: search, $options: 'i' } },
+        { specialInstructions: { $regex: search, $options: 'i' } },
+        { orderNumber: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Filter by customer
+    if (customerId) {
+      filter.customerId = customerId;
+    }
+
+    // Filter by status
+    if (orderStatus) {
+      filter.orderStatus = orderStatus;
+    }
+
+    // Filter by product information
+    if (productInformation) {
+      filter.productInformation = { $regex: productInformation, $options: 'i' };
+    }
+
+    // Filter by order value range
+    if (minOrderValue || maxOrderValue) {
+      filter.orderValue = {};
+      if (minOrderValue) filter.orderValue.$gte = parseFloat(minOrderValue);
+      if (maxOrderValue) filter.orderValue.$lte = parseFloat(maxOrderValue);
+    }
+
+    // Filter by date range
+    if (startDate || endDate) {
+      filter.orderDate = {};
+      if (startDate) filter.orderDate.$gte = new Date(startDate);
+      if (endDate) filter.orderDate.$lte = new Date(endDate);
+    }
+
+    // Sort configuration
+    const sortConfig = {};
+    sortConfig[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    // Pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Get total count for pagination
+    const totalCount = await Order.countDocuments(filter);
+
+    // Get orders with filters, sorting, and pagination
+    const orders = await Order.find(filter)
       .populate('customerId', 'name email phone')
-      .sort({ createdAt: -1 });
+      .sort(sortConfig)
+      .skip(skip)
+      .limit(parseInt(limit));
 
     res.status(200).json({
       success: true,
       count: orders.length,
+      totalCount,
+      currentPage: parseInt(page),
+      totalPages: Math.ceil(totalCount / parseInt(limit)),
       orders
     });
   } catch (error) {

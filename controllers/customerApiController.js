@@ -316,8 +316,180 @@ const updateCustomerAddress = async (req, res) => {
   }
 };
 
+const updateCustomerWithAddresses = async (req, res) => {
+  try {
+    const { customerId } = req.params;
+    const { name, email, phone, address } = req.body;
+    const userId = req.user.id;
+
+    // Validation
+    if (!name || !phone) {
+      return res.status(400).json({
+        status: false,
+        message: 'Name and phone are required'
+      });
+    }
+
+    // Find customer and verify ownership
+    const customer = await Customer.findOne({ _id: customerId, userId });
+    if (!customer) {
+      return res.status(404).json({
+        status: false,
+        message: 'Customer not found or not authorized'
+      });
+    }
+
+    // Check if email already exists for this user (excluding current customer)
+    if (email && email !== customer.email) {
+      const existingEmail = await Customer.findOne({ 
+        email: email.trim(), 
+        userId, 
+        _id: { $ne: customerId } 
+      });
+      if (existingEmail) {
+        return res.status(409).json({
+          status: false,
+          message: 'Email already exists for this user'
+        });
+      }
+    }
+
+    // Check if phone already exists for this user (excluding current customer)
+    if (phone && phone !== customer.phone) {
+      const existingPhone = await Customer.findOne({ 
+        phone: phone.trim(), 
+        userId, 
+        _id: { $ne: customerId } 
+      });
+      if (existingPhone) {
+        return res.status(409).json({
+          status: false,
+          message: 'Phone number already exists for this user'
+        });
+      }
+    }
+
+    // Update customer basic info
+    customer.name = name.trim();
+    customer.email = email?.trim() || '';
+    customer.phone = phone.trim();
+    await customer.save();
+
+    // Process addresses
+    const savedAddresses = [];
+    const processedAddressIds = [];
+
+    if (address && Array.isArray(address)) {
+      for (const addr of address) {
+        const {
+          id,
+          addressLine,
+          city,
+          pinCode,
+          state,
+          primary
+        } = addr;
+
+        if (addressLine && city && pinCode && state) {
+          if (id) {
+            // Update existing address
+            const existingAddress = await CustomerAddress.findOne({
+              _id: id,
+              customerId: customer._id
+            });
+
+            if (existingAddress) {
+              // If setting as primary, ensure no other address is primary
+              if (primary === true) {
+                await CustomerAddress.updateMany(
+                  { customerId: customer._id },
+                  { $set: { isPrimary: false } }
+                );
+              }
+
+              existingAddress.addressName = addressLine.trim();
+              existingAddress.city = city.trim();
+              existingAddress.pinCode = pinCode.trim();
+              existingAddress.state = state.trim();
+              existingAddress.isPrimary = primary || false;
+              existingAddress.fullAddress = `${addressLine.trim()}, ${city.trim()}, ${state.trim()} - ${pinCode.trim()}`;
+
+              await existingAddress.save();
+              savedAddresses.push(existingAddress);
+              processedAddressIds.push(existingAddress._id.toString());
+            }
+          } else {
+            // Create new address
+            if (primary === true) {
+              await CustomerAddress.updateMany(
+                { customerId: customer._id },
+                { $set: { isPrimary: false } }
+              );
+            }
+
+            const newAddress = new CustomerAddress({
+              customerId: customer._id,
+              addressName: addressLine.trim(),
+              city: city.trim(),
+              pinCode: pinCode.trim(),
+              state: state.trim(),
+              isPrimary: primary || false,
+              fullAddress: `${addressLine.trim()}, ${city.trim()}, ${state.trim()} - ${pinCode.trim()}`
+            });
+
+            await newAddress.save();
+            savedAddresses.push(newAddress);
+            processedAddressIds.push(newAddress._id.toString());
+          }
+        }
+      }
+    }
+
+    // Delete addresses that exist in DB but not in the payload
+    const allCustomerAddresses = await CustomerAddress.find({ customerId: customer._id });
+    const addressesToDelete = allCustomerAddresses.filter(
+      addr => !processedAddressIds.includes(addr._id.toString())
+    );
+
+    for (const addrToDelete of addressesToDelete) {
+      await CustomerAddress.findByIdAndDelete(addrToDelete._id);
+    }
+
+    // Get final list of addresses
+    const finalAddresses = await CustomerAddress.find({ customerId: customer._id }).sort({ isPrimary: -1 });
+
+    res.status(200).json({
+      status: true,
+      message: 'Customer updated successfully',
+      customer: {
+        id: customer._id,
+        name: customer.name,
+        email: customer.email,
+        phone: customer.phone
+      },
+      addresses: finalAddresses.map(addr => ({
+        id: addr._id,
+        addressLine: addr.addressName,
+        city: addr.city,
+        pinCode: addr.pinCode,
+        state: addr.state,
+        primary: addr.isPrimary
+      }))
+    });
+
+  } catch (error) {
+    console.error('Update customer with addresses error:', error);
+    res.status(500).json({
+      status: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   addOrUpdateCustomer,
   getCustomerDetails,
-  updateCustomerAddress
+  updateCustomerAddress,
+  updateCustomerWithAddresses
 };

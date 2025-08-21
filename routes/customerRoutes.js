@@ -9,6 +9,7 @@ const verifyToken = require('../middleware/authMiddleware');
 router.post('/add', verifyToken, customerApiController.addOrUpdateCustomer);
 router.get('/:customerId/details', verifyToken, customerApiController.getCustomerDetails);
 router.put('/:customerId/address/:addressId', verifyToken, customerApiController.updateCustomerAddress);
+router.put('/:customerId', verifyToken, customerApiController.updateCustomerWithAddresses);
 
 // Legacy customer routes (keep for backward compatibility)
 router.post('/register', verifyToken, customerController.registerCustomer);

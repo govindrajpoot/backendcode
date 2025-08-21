@@ -215,146 +215,104 @@ const createOrder = async (req, res) => {
 
 
 
+//const Order = require('../models/Order'); // import your model
+
 const getAllOrders = async (req, res) => {
   try {
     // Validate user authentication
     if (!req.user || !req.user.id) {
       return res.status(401).json({
         success: false,
-        message: 'Unauthorized: User not authenticated'
+        message: "Unauthorized: User not authenticated",
       });
     }
 
     const userId = req.user.id;
     const {
       search,
-      customerId,
-      orderStatus,
-      productInformation,
-      minOrderValue,
-      maxOrderValue,
-      startDate,
-      endDate,
-      sortBy = 'createdAt',
-      sortOrder = 'desc',
+      sortBy = "createdAt",
+      sortOrder = "desc",
       page = 1,
-      limit = 10
+      limit = 10,
     } = req.query;
 
-    // Validate pagination parameters
+    // Validate pagination
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     if (isNaN(pageNum) || pageNum < 1 || isNaN(limitNum) || limitNum < 1) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid pagination parameters'
+        message: "Invalid pagination parameters",
       });
     }
 
-    // Build filter object
+    // Base filter
     let filter = { userId };
 
-    // Universal search parameter - searches across all text fields
-    if (search && typeof search === 'string') {
+    // Universal Search
+    if (search && typeof search === "string") {
+      const regex = { $regex: search, $options: "i" }; // case-insensitive
+      const numericSearch = !isNaN(search) ? Number(search) : null;
+
       filter.$or = [
-        { productInformation: { $regex: search, $options: 'i' } },
-        { productDescription: { $regex: search, $options: 'i' } },
-        { specialInstructions: { $regex: search, $options: 'i' } },
-        { orderNumber: { $regex: search, $options: 'i' } },
-        { orderStatus: { $regex: search, $options: 'i' } },
-        { 'dimensions.length': { $regex: search, $options: 'i' } },
-        { 'dimensions.width': { $regex: search, $options: 'i' } },
-        { 'dimensions.height': { $regex: search, $options: 'i' } }
+        // String fields
+        { orderNumber: regex },
+        { productInformation: regex },
+        { productDescription: regex },
+        { specialInstructions: regex },
+        { orderStatus: regex },
+
+        // Numeric fields (only if search is number)
+        ...(numericSearch !== null
+          ? [
+              { quantity: numericSearch },
+              { numberOfBoxes: numericSearch },
+              { weight: numericSearch },
+              { orderValue: numericSearch },
+              { "dimensions.length": numericSearch },
+              { "dimensions.width": numericSearch },
+              { "dimensions.height": numericSearch },
+            ]
+          : []),
       ];
     }
 
-    // Filter by customer
-    if (customerId) filter.customerId = customerId;
-
-    // Filter by status
-    if (orderStatus) filter.orderStatus = orderStatus;
-
-    // Filter by product information
-    if (productInformation) {
-      filter.productInformation = { $regex: productInformation, $options: 'i' };
-    }
-
-    // Filter by order value range
-    if (minOrderValue || maxOrderValue) {
-      filter.orderValue = {};
-      if (minOrderValue) filter.orderValue.$gte = parseFloat(minOrderValue);
-      if (maxOrderValue) filter.orderValue.$lte = parseFloat(maxOrderValue);
-    }
-
-    // Filter by date range
-    if (startDate || endDate) {
-      filter.orderDate = {};
-      if (startDate) filter.orderDate.$gte = new Date(startDate);
-      if (endDate) filter.orderDate.$lte = new Date(endDate);
-    }
-
-    // Filter by quantity range
-    if (req.query.minQuantity || req.query.maxQuantity) {
-      filter.quantity = {};
-      if (req.query.minQuantity) filter.quantity.$gte = parseInt(req.query.minQuantity);
-      if (req.query.maxQuantity) filter.quantity.$lte = parseInt(req.query.maxQuantity);
-    }
-
-    // Filter by weight range
-    if (req.query.minWeight || req.query.maxWeight) {
-      filter.weight = {};
-      if (req.query.minWeight) filter.weight.$gte = parseFloat(req.query.minWeight);
-      if (req.query.maxWeight) filter.weight.$lte = parseFloat(req.query.maxWeight);
-    }
-
-    // Filter by number of boxes range
-    if (req.query.minBoxes || req.query.maxBoxes) {
-      filter.numberOfBoxes = {};
-      if (req.query.minBoxes) filter.numberOfBoxes.$gte = parseInt(req.query.minBoxes);
-      if (req.query.maxBoxes) filter.numberOfBoxes.$lte = parseInt(req.query.maxBoxes);
-    }
-
-    // // Filter by exact dimensions
-    // if (req.query.length) filter['dimensions.length'] = parseFloat(req.query.length);
-    // if (req.query.width) filter['dimensions.width'] = parseFloat(req.query.width);
-    // if (req.query.height) filter['dimensions.height'] = parseFloat(req.query.height);
-
-    // Validate sortBy field (optional: add allowed fields)
-    const allowedSortFields = ['createdAt', 'orderValue', 'orderDate', 'quantity'];
+    // Allowed sort fields
+    const allowedSortFields = ["createdAt", "orderValue", "orderDate", "quantity"];
     if (sortBy && !allowedSortFields.includes(sortBy)) {
       return res.status(400).json({
         success: false,
-        message: `Invalid sortBy field. Allowed: ${allowedSortFields.join(', ')}`
+        message: `Invalid sortBy field. Allowed: ${allowedSortFields.join(", ")}`,
       });
     }
 
-    // Sort configuration
+    // Sorting
     const sortConfig = {};
-    sortConfig[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    sortConfig[sortBy] = sortOrder === "desc" ? -1 : 1;
 
     // Pagination
     const skip = (pageNum - 1) * limitNum;
 
-    // Get total count for pagination
+    // Get total count
     const totalCount = await Order.countDocuments(filter);
 
-    // Get orders with filters, sorting, and pagination
+    // Fetch orders
     const orders = await Order.find(filter)
-      .populate('customerId', 'name email phone')
+      .populate("customerId", "name email phone")
       .sort(sortConfig)
       .skip(skip)
       .limit(limitNum);
 
-    // If no orders found, return custom message with status 200
+    // If no orders
     if (orders.length === 0) {
       return res.status(200).json({
         success: true,
-        message: 'No matching orders found.',
+        message: "No matching orders found.",
         count: 0,
         totalCount,
         currentPage: pageNum,
         totalPages: Math.ceil(totalCount / limitNum),
-        orders: []
+        orders: [],
       });
     }
 
@@ -365,17 +323,186 @@ const getAllOrders = async (req, res) => {
       totalCount,
       currentPage: pageNum,
       totalPages: Math.ceil(totalCount / limitNum),
-      orders
+      orders,
     });
   } catch (error) {
-    console.error('Error fetching orders:', error);
+    console.error("Error fetching orders:", error);
     res.status(500).json({
       success: false,
-      message: 'Internal server error while fetching orders',
-      error: error.message
+      message: "Internal server error while fetching orders",
+      error: error.message,
     });
   }
 };
+
+module.exports = { getAllOrders };
+
+
+
+
+
+
+// const getAllOrders = async (req, res) => {
+//   try {
+//     // Validate user authentication
+//     if (!req.user || !req.user.id) {
+//       return res.status(401).json({
+//         success: false,
+//         message: 'Unauthorized: User not authenticated'
+//       });
+//     }
+
+//     const userId = req.user.id;
+//     const {
+//       search,
+//       customerId,
+//       orderStatus,
+//       productInformation,
+//       minOrderValue,
+//       maxOrderValue,
+//       startDate,
+//       endDate,
+//       sortBy = 'createdAt',
+//       sortOrder = 'desc',
+//       page = 1,
+//       limit = 10
+//     } = req.query;
+
+//     // Validate pagination parameters
+//     const pageNum = parseInt(page);
+//     const limitNum = parseInt(limit);
+//     if (isNaN(pageNum) || pageNum < 1 || isNaN(limitNum) || limitNum < 1) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Invalid pagination parameters'
+//       });
+//     }
+
+//     // Build filter object
+//     let filter = { userId };
+
+//     // Universal search parameter - searches across all text fields
+//     if (search && typeof search === 'string') {
+//       filter.$or = [
+//         { productInformation: { $regex: search, $options: 'i' } },
+//         { productDescription: { $regex: search, $options: 'i' } },
+//         { specialInstructions: { $regex: search, $options: 'i' } },
+//         { orderNumber: { $regex: search, $options: 'i' } },
+//         { orderStatus: { $regex: search, $options: 'i' } },
+//         { 'dimensions.length': { $regex: search, $options: 'i' } },
+//         { 'dimensions.width': { $regex: search, $options: 'i' } },
+//         { 'dimensions.height': { $regex: search, $options: 'i' } }
+//       ];
+//     }
+
+//     // Filter by customer
+//     if (customerId) filter.customerId = customerId;
+
+//     // Filter by status
+//     if (orderStatus) filter.orderStatus = orderStatus;
+
+//     // Filter by product information
+//     if (productInformation) {
+//       filter.productInformation = { $regex: productInformation, $options: 'i' };
+//     }
+
+//     // Filter by order value range
+//     if (minOrderValue || maxOrderValue) {
+//       filter.orderValue = {};
+//       if (minOrderValue) filter.orderValue.$gte = parseFloat(minOrderValue);
+//       if (maxOrderValue) filter.orderValue.$lte = parseFloat(maxOrderValue);
+//     }
+
+//     // Filter by date range
+//     if (startDate || endDate) {
+//       filter.orderDate = {};
+//       if (startDate) filter.orderDate.$gte = new Date(startDate);
+//       if (endDate) filter.orderDate.$lte = new Date(endDate);
+//     }
+
+//     // Filter by quantity range
+//     if (req.query.minQuantity || req.query.maxQuantity) {
+//       filter.quantity = {};
+//       if (req.query.minQuantity) filter.quantity.$gte = parseInt(req.query.minQuantity);
+//       if (req.query.maxQuantity) filter.quantity.$lte = parseInt(req.query.maxQuantity);
+//     }
+
+//     // Filter by weight range
+//     if (req.query.minWeight || req.query.maxWeight) {
+//       filter.weight = {};
+//       if (req.query.minWeight) filter.weight.$gte = parseFloat(req.query.minWeight);
+//       if (req.query.maxWeight) filter.weight.$lte = parseFloat(req.query.maxWeight);
+//     }
+
+//     // Filter by number of boxes range
+//     if (req.query.minBoxes || req.query.maxBoxes) {
+//       filter.numberOfBoxes = {};
+//       if (req.query.minBoxes) filter.numberOfBoxes.$gte = parseInt(req.query.minBoxes);
+//       if (req.query.maxBoxes) filter.numberOfBoxes.$lte = parseInt(req.query.maxBoxes);
+//     }
+
+//     // // Filter by exact dimensions
+//     // if (req.query.length) filter['dimensions.length'] = parseFloat(req.query.length);
+//     // if (req.query.width) filter['dimensions.width'] = parseFloat(req.query.width);
+//     // if (req.query.height) filter['dimensions.height'] = parseFloat(req.query.height);
+
+//     // Validate sortBy field (optional: add allowed fields)
+//     const allowedSortFields = ['createdAt', 'orderValue', 'orderDate', 'quantity'];
+//     if (sortBy && !allowedSortFields.includes(sortBy)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: `Invalid sortBy field. Allowed: ${allowedSortFields.join(', ')}`
+//       });
+//     }
+
+//     // Sort configuration
+//     const sortConfig = {};
+//     sortConfig[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+//     // Pagination
+//     const skip = (pageNum - 1) * limitNum;
+
+//     // Get total count for pagination
+//     const totalCount = await Order.countDocuments(filter);
+
+//     // Get orders with filters, sorting, and pagination
+//     const orders = await Order.find(filter)
+//       .populate('customerId', 'name email phone')
+//       .sort(sortConfig)
+//       .skip(skip)
+//       .limit(limitNum);
+
+//     // If no orders found, return custom message with status 200
+//     if (orders.length === 0) {
+//       return res.status(200).json({
+//         success: true,
+//         message: 'No matching orders found.',
+//         count: 0,
+//         totalCount,
+//         currentPage: pageNum,
+//         totalPages: Math.ceil(totalCount / limitNum),
+//         orders: []
+//       });
+//     }
+
+//     // Success response
+//     res.status(200).json({
+//       success: true,
+//       count: orders.length,
+//       totalCount,
+//       currentPage: pageNum,
+//       totalPages: Math.ceil(totalCount / limitNum),
+//       orders
+//     });
+//   } catch (error) {
+//     console.error('Error fetching orders:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Internal server error while fetching orders',
+//       error: error.message
+//     });
+//   }
+// };
 
 
 // Get order by ID (user-specific)

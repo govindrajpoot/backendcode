@@ -487,9 +487,70 @@ const updateCustomerWithAddresses = async (req, res) => {
   }
 };
 
+const getAllCustomersWithAddresses = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Fetch all customers for this user
+    const customers = await Customer.find({ userId }).sort({ createdAt: -1 });
+    
+    if (!customers || customers.length === 0) {
+      return res.status(200).json({
+        status: true,
+        message: 'No customers found',
+        customers: []
+      });
+    }
+
+    // Get all addresses for these customers
+    const customersWithAddresses = await Promise.all(
+      customers.map(async (customer) => {
+        const addresses = await CustomerAddress.find({ 
+          customerId: customer._id 
+        }).sort({ isPrimary: -1 });
+
+        return {
+          id: customer._id,
+          name: customer.name,
+          email: customer.email,
+          phone: customer.phone,
+          createdAt: customer.createdAt,
+          updatedAt: customer.updatedAt,
+          addresses: addresses.map(addr => ({
+            id: addr._id,
+            addressLine: addr.addressName,
+            city: addr.city,
+            pinCode: addr.pinCode,
+            state: addr.state,
+            primary: addr.isPrimary,
+            fullAddress: addr.fullAddress,
+            createdAt: addr.createdAt,
+            updatedAt: addr.updatedAt
+          }))
+        };
+      })
+    );
+
+    res.status(200).json({
+      status: true,
+      count: customersWithAddresses.length,
+      customers: customersWithAddresses
+    });
+
+  } catch (error) {
+    console.error('Get all customers with addresses error:', error);
+    res.status(500).json({
+      status: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   addOrUpdateCustomer,
   getCustomerDetails,
   updateCustomerAddress,
-  updateCustomerWithAddresses
+  updateCustomerWithAddresses,
+  getAllCustomersWithAddresses
 };

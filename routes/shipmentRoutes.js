@@ -6,7 +6,7 @@ const verifyToken = require('../middleware/authMiddleware');
 
 // Shipment routes
 router.post('/', verifyToken, shipmentController.createShipment);
-router.post('/bulk', verifyToken, bulkShipmentController.createBulkShipments);
+router.post('/bulk', verifyToken, bulkShipmentController.upload, bulkShipmentController.createBulkShipments);
 router.get('/order/:orderId', verifyToken, bulkShipmentController.getOrderShipments);
 router.get('/', verifyToken, shipmentController.getAllShipments);
 router.get('/courier-services', verifyToken, shipmentController.getCourierServices);

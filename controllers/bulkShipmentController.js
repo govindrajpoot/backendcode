@@ -1,20 +1,50 @@
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const Shipment = require('../models/Shipment');
+const Order = require('../models/Order');
 const Customer = require('../models/Customer');
 const CustomerAddress = require('../models/CustomerAddress');
-const Order = require('../models/Order');
+
+// Set up multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/');
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 250 * 1024 * 1024 }, // 250MB limit for videos
+  fileFilter: (req, file, cb) => {
+    const filetypes = /jpeg|jpg|png|gif|mp4/;
+    const mimetype = filetypes.test(file.mimetype);
+    if (mimetype) {
+      return cb(null, true);
+    }
+    cb(new Error('Invalid file type. Only images and videos are allowed.'));
+  }
+}).fields([{ name: 'images', maxCount: 5 }, { name: 'video', maxCount: 1 }]);
+
+// Export the upload middleware
+exports.upload = upload;
 
 // Create bulk shipments for an order
 exports.createBulkShipments = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { orderId, customerId, shipments } = req.body;
+    console.log('Request Body:', req.body); // Debugging line
+    const { orderId, customerId, shipments = [] } = req.body || {};
 
     // Validation
-    if (!orderId || !customerId || !shipments || !Array.isArray(shipments) || shipments.length === 0) {
-      return res.status(400).json({
-        status: false,
-        message: 'orderId, customerId, and shipments array are required'
-      });
+    if (!orderId && !customerId && (!shipments || shipments.length === 0)) {
+        return res.status(400).json({
+            status: false,
+            message: 'At least one of orderId, customerId, or shipments array is required'
+        });
     }
 
     // Verify order belongs to user
@@ -47,7 +77,9 @@ exports.createBulkShipments = async (req, res) => {
         trackingLink,
         dispatchPersonName,
         receiverName,
-        notes
+        notes,
+        images,
+        video
       } = shipmentData;
 
       // Validation for each shipment
@@ -55,6 +87,21 @@ exports.createBulkShipments = async (req, res) => {
         return res.status(400).json({
           status: false,
           message: 'Each shipment must include shippingAddress, courierService, shippingCost, numberOfBoxes, dispatchPersonName, and receiverName'
+        });
+      }
+
+      // Validate images and video
+      if (images.length > 5) {
+        return res.status(400).json({
+          status: false,
+          message: 'You can upload a maximum of 5 images.'
+        });
+      }
+
+      if (video && video.size > 250 * 1024 * 1024) {
+        return res.status(400).json({
+          status: false,
+          message: 'Video size must not exceed 250MB.'
         });
       }
 
@@ -87,7 +134,9 @@ exports.createBulkShipments = async (req, res) => {
         trackingLink,
         dispatchPersonName,
         receiverName,
-        notes
+        notes,
+        images, // Store image URLs
+        videos: video ? [video.path] : [] // Store video URL
       });
 
       await shipment.save();
@@ -117,6 +166,7 @@ exports.createBulkShipments = async (req, res) => {
     });
   }
 };
+// Clean up unnecessary comments
 
 // Get all shipments for an order
 exports.getOrderShipments = async (req, res) => {

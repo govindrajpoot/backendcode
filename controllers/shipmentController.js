@@ -56,12 +56,19 @@ exports.createShipment = async (req, res) => {
       });
     }
 
-    // Create shipment
+    // Create shipment with complete address details
     const shipment = new Shipment({
       orderId,
       customerId,
       userId,
       shippingAddress,
+      shippingAddressDetails: {
+        addressLine: address.addressName,
+        city: address.city,
+        pinCode: address.pinCode,
+        state: address.state,
+        fullAddress: address.fullAddress
+      },
       courierService,
       shippingCost,
       numberOfBoxes,
@@ -97,11 +104,44 @@ exports.createShipment = async (req, res) => {
   }
 };
 
+// Update shipment by orderId and shipmentId
+exports.updateShipmentByOrderIdAndShipmentId = async (req, res) => {
+  try {
+    const { orderId, shipmentId } = req.params;
+    const updateData = req.body;
+
+    // Find the shipment
+    const shipment = await Shipment.findOne({ _id: shipmentId, orderId });
+    if (!shipment) {
+      return res.status(404).json({
+        status: false,
+        message: 'Shipment not found or does not belong to this order'
+      });
+    }
+
+    // Update shipment details
+    Object.assign(shipment, updateData);
+    await shipment.save();
+
+    res.status(200).json({
+      status: true,
+      message: 'Shipment updated successfully',
+      shipment
+    });
+  } catch (error) {
+    console.error('Update shipment error:', error);
+    res.status(500).json({
+      status: false,
+      message: 'Server error during shipment update',
+      error: error.message
+    });
+  }
+};
+
 // Get all shipments for user
 exports.getAllShipments = async (req, res) => {
   try {
     const userId = req.user.id;
-    
     const shipments = await Shipment.find({ userId })
       .populate('orderId', 'orderNumber totalAmount')
       .populate('customerId', 'name email phone')
@@ -113,9 +153,37 @@ exports.getAllShipments = async (req, res) => {
       count: shipments.length,
       shipments
     });
-
   } catch (error) {
-    console.error('Get shipments error:', error);
+    console.error('Get all shipments error:', error);
+    res.status(500).json({
+      status: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// Get courier services
+exports.getCourierServices = async (req, res) => {
+  try {
+    const courierServices = [
+      'FedEx',
+      'UPS',
+      'DHL',
+      'USPS',
+      'Blue Dart',
+      'DTDC',
+      'Delhivery',
+      'Ecom Express',
+      'XpressBees'
+    ];
+
+    res.status(200).json({
+      status: true,
+      courierServices
+    });
+  } catch (error) {
+    console.error('Get courier services error:', error);
     res.status(500).json({
       status: false,
       message: 'Server error',
@@ -146,9 +214,8 @@ exports.getShipmentById = async (req, res) => {
       status: true,
       shipment
     });
-
   } catch (error) {
-    console.error('Get shipment error:', error);
+    console.error('Get shipment by ID error:', error);
     res.status(500).json({
       status: false,
       message: 'Server error',
@@ -172,45 +239,19 @@ exports.updateShipment = async (req, res) => {
       });
     }
 
-    // Handle file uploads
-    if (req.files?.images) {
-      const newImages = req.files.images.map(file => file.path);
-      updateData.images = [...(shipment.images || []), ...newImages];
-    }
-
-    if (req.files?.videos) {
-      const newVideos = req.files.videos.map(file => file.path);
-      updateData.videos = [...(shipment.videos || []), ...newVideos];
-    }
-
-    // Update status timestamps
-    if (updateData.status === 'Dispatched' && !shipment.dispatchedAt) {
-      updateData.dispatchedAt = new Date();
-    }
-    if (updateData.status === 'Delivered' && !shipment.deliveredAt) {
-      updateData.deliveredAt = new Date();
-    }
-
     Object.assign(shipment, updateData);
     await shipment.save();
-
-    await shipment.populate([
-      { path: 'orderId', select: 'orderNumber totalAmount' },
-      { path: 'customerId', select: 'name email phone' },
-      { path: 'shippingAddress', select: 'addressName fullAddress' }
-    ]);
 
     res.status(200).json({
       status: true,
       message: 'Shipment updated successfully',
       shipment
     });
-
   } catch (error) {
     console.error('Update shipment error:', error);
     res.status(500).json({
       status: false,
-      message: 'Server error',
+      message: 'Server error during shipment update',
       error: error.message
     });
   }
@@ -230,47 +271,19 @@ exports.deleteShipment = async (req, res) => {
       });
     }
 
-    await Shipment.findByIdAndDelete(id);
+    await Shipment.deleteOne({ _id: id });
 
     res.status(200).json({
       status: true,
       message: 'Shipment deleted successfully'
     });
-
   } catch (error) {
     console.error('Delete shipment error:', error);
     res.status(500).json({
       status: false,
-      message: 'Server error',
+      message: 'Server error during shipment deletion',
       error: error.message
     });
   }
 };
 
-// Get available courier services
-exports.getCourierServices = async (req, res) => {
-  try {
-    const courierServices = [
-      'FedEx',
-      'DHL',
-      'UPS',
-      'Blue Dart',
-      'Delhivery',
-      'India Post',
-      'Other'
-    ];
-
-    res.status(200).json({
-      status: true,
-      courierServices
-    });
-
-  } catch (error) {
-    console.error('Get courier services error:', error);
-    res.status(500).json({
-      status: false,
-      message: 'Server error',
-      error: error.message
-    });
-  }
-};

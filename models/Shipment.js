@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
 
 const shipmentSchema = new mongoose.Schema({
+  _id: {
+    type: String,
+    default: function() {
+      return new Date().getTime().toString();
+    }
+  },
   orderId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Order',
@@ -58,7 +64,7 @@ const shipmentSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 1,
-    max: 20
+    max: 200
   },
   trackingNumber: {
     type: String,

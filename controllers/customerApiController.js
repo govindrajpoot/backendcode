@@ -490,15 +490,28 @@ const updateCustomerWithAddresses = async (req, res) => {
 const getAllCustomersWithAddresses = async (req, res) => {
   try {
     const userId = req.user.id;
+    const { search } = req.query;
 
-    // Fetch all customers for this user
-    const customers = await Customer.find({ userId }).sort({ createdAt: -1 });
+    // Build query based on search parameter
+    let customerQuery = { userId };
+    
+    if (search) {
+      customerQuery.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { phone: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Fetch customers based on query
+    const customers = await Customer.find(customerQuery).sort({ createdAt: -1 });
     
     if (!customers || customers.length === 0) {
       return res.status(200).json({
         status: true,
         message: 'No customers found',
-        customers: []
+        customers: [],
+        count: 0
       });
     }
 

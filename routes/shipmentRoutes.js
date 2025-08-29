@@ -12,6 +12,8 @@ router.get('/', verifyToken, shipmentController.getAllShipments);
 router.get('/courier-services', verifyToken, shipmentController.getCourierServices);
 router.get('/:id', verifyToken, shipmentController.getShipmentById);
 router.put('/:id', verifyToken, shipmentController.updateShipment);
+router.put('/:orderId/:shipmentId', verifyToken, shipmentController.updateShipmentByOrderIdAndShipmentId);
 router.delete('/:id', verifyToken, shipmentController.deleteShipment);
 
 module.exports = router;
+ 

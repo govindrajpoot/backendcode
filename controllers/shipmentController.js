@@ -18,7 +18,8 @@ exports.createShipment = async (req, res) => {
       trackingLink,
       dispatchPersonName,
       receiverName,
-      notes
+      notes,
+      images = [] // Add images field to accept image URLs
     } = req.body;
 
     // Validation
@@ -56,6 +57,14 @@ exports.createShipment = async (req, res) => {
       });
     }
 
+    // Validate images if provided
+    if (images && !Array.isArray(images)) {
+      return res.status(400).json({
+        status: false,
+        message: 'Images must be an array of URLs'
+      });
+    }
+
     // Create shipment with complete address details
     const shipment = new Shipment({
       orderId,
@@ -76,7 +85,8 @@ exports.createShipment = async (req, res) => {
       trackingLink,
       dispatchPersonName,
       receiverName,
-      notes
+      notes,
+      images // Store image URLs
     });
 
     await shipment.save();

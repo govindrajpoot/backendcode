@@ -27,10 +27,29 @@ const storage = multer.diskStorage({
   }
 });
 
-// File filter - allow all file types
+// File filter for images and videos
 const fileFilter = (req, file, cb) => {
-  // Allow all file types
-  cb(null, true);
+  if (file.fieldname === 'images') {
+    const allowedImageTypes = /jpeg|jpg|png|gif|webp/;
+    const extname = allowedImageTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedImageTypes.test(file.mimetype);
+
+    if (mimetype && extname) {
+      return cb(null, true);
+    }
+    cb(new Error('Invalid image type. Only images (jpeg, jpg, png, gif, webp) are allowed.'));
+  } else if (file.fieldname === 'videos') {
+    const allowedVideoTypes = /mp4|mov|avi|wmv|webm/;
+    const extname = allowedVideoTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedVideoTypes.test(file.mimetype);
+
+    if (mimetype && extname) {
+      return cb(null, true);
+    }
+    cb(new Error('Invalid video type. Only videos (mp4, mov, avi, wmv, webm) are allowed.'));
+  } else {
+    cb(new Error('Unexpected field name'));
+  }
 };
 
 // Configure multer for multiple file uploads (images and videos)
@@ -55,6 +74,7 @@ const handleUploadErrors = (err, req, res, next) => {
         message: 'File too large. Maximum size is 100MB per file.'
       });
     }
+    if (极
     if (err.code === 'LIMIT_FILE_COUNT') {
       return res.status(400).json({
         status: false,
@@ -69,6 +89,12 @@ const handleUploadErrors = (err, req, res, next) => {
     }
   }
   
+  if (err.message.includes('Invalid image type') || err.message.includes('Invalid video type')) {
+    return res.status(400).json({
+      status: false,
+      message: err.message
+    });
+  }
 
   return res.status(500).json({
     status: false,
@@ -78,7 +104,7 @@ const handleUploadErrors = (err, req, res, next) => {
 };
 
 // Upload multiple images and videos
-exports.uploadImages = [
+exports.uploadMedia = [
   upload,
   handleUploadErrors,
   async (req, res) => {
@@ -142,98 +168,8 @@ exports.uploadImages = [
   }
 ];
 
-// Get all uploaded files (for testing/admin purposes)
+// Get all uploaded images (for testing/admin purposes)
 exports.getUploadedImages = async (req, res) => {
-  try {
-    const imagesDir = 'uploads/images/';
-    const videosDir = 'uploads/videos/';
-    
-    // Check if directories exist
-    const imagesExist = fs.existsSync(imagesDir);
-    const videosExist = fs.existsSync(videosDir);
-
-    let allFiles = [];
-
-    // Read image directory if it exists
-    if (imagesExist) {
-      const imageFiles = fs.readdirSync(imagesDir);
-      allFiles = allFiles.concat(imageFiles.map(file => ({
-        filename: file,
-        url: `/uploads/images/${file}`,
-        path: path.join(imagesDir, file),
-        type: 'image'
-      })));
-    }
-
-    // Read video directory if it exists
-    if (videosExist) {
-      const videoFiles = fs.readdirSync(videosDir);
-      allFiles = allFiles.concat(videoFiles.map(file => ({
-        filename: file,
-        url: `/uploads/videos/${file}`,
-        path: path.join(videosDir, file),
-        type: 'video'
-      })));
-    }
-
-    if (allFiles.length === 0) {
-      return res.status(200).json({
-        status: true,
-        message: 'No files uploaded yet',
-        files: []
-      });
-    }
-
-    res.status(200).json({
-      status: true,
-      count: allFiles.length,
-      files: allFiles
-    });
-
-  } catch (error) {
-    console.error('Get uploaded files error:', error);
-    res.status(500).json({
-      status: false,
-      message: 'Server error while fetching uploaded files',
-      error: error.message
-    });
-  }
-};
-
-// Delete specific uploaded image
-exports.deleteImage = async (req, res) => {
-  try {
-    const { filename } = req.params;
-    const imagePath = path.join('uploads/images/', filename);
-
-    // Check if file exists
-    if (!fs.existsSync(imagePath)) {
-      return res.status(404).json({
-        status: false,
-        message: 'Image not found'
-      });
-    }
-
-    // Delete the file
-    fs.unlinkSync(imagePath);
-
-    res.status(200).json({
-      status: true,
-      message: 'Image deleted successfully'
-    });
-
-  } catch (error) {
-    console.error('Delete image error:', error);
-    res.status(500).json({
-      status: false,
-      message: 'Server error while deleting image',
-      error: error.message
-    });
-  }
-};
-
-// Clean up all uploaded images (for testing/admin purposes)
-exports.cleanupImages = async (req, res) => {
   try {
     const imagesDir = 'uploads/images/';
     
@@ -241,32 +177,164 @@ exports.cleanupImages = async (req, res) => {
     if (!fs.existsSync(imagesDir)) {
       return res.status(200).json({
         status: true,
-        message: 'No images to clean up',
-        deletedCount: 0
+        message: 'No images uploaded yet',
+        images: []
       });
     }
 
-    // Read directory and get all files
+    // Read directory and get image files
     const files = fs.readdirSync(imagesDir);
-    let deletedCount = 0;
-
-    files.forEach(file => {
-      const filePath = path.join(imagesDir, file);
-      fs.unlinkSync(filePath);
-      deletedCount++;
+    const imageFiles = files.filter(file => {
+      const ext = path.extname(file).toLowerCase();
+      return ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext);
     });
+
+    const images = imageFiles.map(file => ({
+      filename: file,
+      url: `/uploads/images/${file}`,
+      path: path.join(imagesDir, file)
+    }));
 
     res.status(200).json({
       status: true,
-      message: 'Images cleaned up successfully',
+      count: images.length,
+      images
+    });
+
+  } catch (error) {
+    console.error('Get uploaded images error:', error);
+    res.status(500).json({
+      status: false,
+      message: 'Server error while fetching uploaded images',
+      error: error.message
+    });
+  }
+};
+
+// Get all uploaded videos (for testing/admin purposes)
+exports.getUploadedVideos = async (req, res) => {
+  try {
+    const videosDir = 'uploads/videos/';
+    
+    // Check if directory exists
+    if (!fs.existsSync(videosDir)) {
+      return res.status(200).json({
+        status: true,
+        message: 'No videos uploaded yet',
+        videos: []
+      });
+    }
+
+    // Read directory and get video files
+    const files = fs.readdirSync(videosDir);
+    const videoFiles = files.filter(file => {
+      const ext = path.extname(file).toLowerCase();
+      return ['.mp4', '.mov', '.avi', '.wmv', '.webm'].includes(ext);
+    });
+
+    const videos = videoFiles.map(file => ({
+      filename: file,
+      url: `/uploads/videos/${file}`,
+      path: path.join(videosDir, file)
+    }));
+
+    res.status(200).json({
+      status: true,
+      count: videos.length,
+      videos
+    });
+
+  } catch (error) {
+    console.error('Get uploaded videos error:', error);
+    res.status(500).json({
+      status: false,
+      message: 'Server error while fetching uploaded videos',
+      error: error.message
+    });
+  }
+};
+
+// Delete specific uploaded file
+exports.deleteFile = async (req, res) => {
+  try {
+    const { filename, type } = req.params;
+    let filePath;
+    
+    if (type === 'image') {
+      filePath = path.join('uploads/images/', filename);
+    } else if (type === 'video') {
+      filePath = path.join('uploads/videos/', filename);
+    } else {
+      return res.status(400).json({
+        status: false,
+        message: 'Invalid file type. Use "image" or "video".'
+      });
+    }
+
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        status: false,
+        message: 'File not found'
+      });
+    }
+
+    // Delete the file
+    fs.unlinkSync(filePath);
+
+    res.status(200).json({
+      status: true,
+      message: 'File deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Delete file error:', error);
+    res.status(500).json({
+      status: false,
+      message: 'Server error while deleting file',
+      error: error.message
+    });
+  }
+};
+
+// Clean up all uploaded files (for testing/admin purposes)
+exports.cleanupFiles = async (req, res) => {
+  try {
+    const imagesDir = 'uploads/images/';
+    const videosDir = 'uploads/videos/';
+    let deletedCount = 0;
+
+    // Clean up images
+    if (fs.existsSync(imagesDir)) {
+      const imageFiles = fs.readdirSync(imagesDir);
+      imageFiles.forEach(file => {
+        const filePath = path.join(imagesDir, file);
+        fs.unlinkSync(filePath);
+        deletedCount++;
+      });
+    }
+
+    // Clean up videos
+    if (fs.existsSync(videosDir)) {
+      const videoFiles = fs.readdirSync(videosDir);
+      videoFiles.forEach(file => {
+        const filePath = path.join(videosDir, file);
+        fs.unlinkSync(filePath);
+        deletedCount++;
+      });
+    }
+
+    res.status(200).json({
+      status: true,
+      message: 'Files cleaned up successfully',
       deletedCount
     });
 
   } catch (error) {
-    console.error('Cleanup images error:', error);
+    console.error('Cleanup files error:', error);
     res.status(500).json({
       status: false,
-      message: 'Server error while cleaning up images',
+      message: 'Server error while cleaning up files',
       error: error.message
     });
   }

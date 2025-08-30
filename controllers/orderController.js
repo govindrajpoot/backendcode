@@ -27,35 +27,39 @@ const createOrder = async (req, res) => {
       });
     }
 
-    // Validate required fields
-    if (!customerId || !productInformation || !quantity || !numberOfBoxes || 
-        !orderDate || !weight || !orderValue || !productDescription || !dimensions) {
+    // Validate required fields - only customerId, productInformation, and orderDate are mandatory
+    if (!customerId || !productInformation || !orderDate) {
       return res.status(400).json({ 
         success: false, 
-        message: 'All required fields must be provided' 
+        message: 'customerId, productInformation, and orderDate are required fields' 
       });
     }
 
-    // Validate dimensions
-    if (!dimensions.length || !dimensions.width || !dimensions.height) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'All dimension fields are required' 
-      });
-    }
+    // Generate order number in ddMMyyyyhhmmsss format
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const milliseconds = String(now.getMilliseconds()).padStart(3, '0');
+    
+    const orderNumber = `${day}${month}${year}${hours}${minutes}${seconds}${milliseconds}`;
 
     // Create new order with user association
     const newOrder = new Order({
       customerId,
       userId,
+      orderNumber,
       productInformation,
-      quantity,
-      numberOfBoxes,
+      quantity: quantity || 1,
+      numberOfBoxes: numberOfBoxes || 1,
       orderDate,
-      weight,
-      orderValue,
-      productDescription,
-      dimensions,
+      weight: weight || 0.1,
+      orderValue: orderValue || 0,
+      productDescription: productDescription || '',
+      dimensions: dimensions || { length: 0.1, width: 0.1, height: 0.1 },
       specialInstructions: specialInstructions || ''
     });
 
@@ -179,6 +183,26 @@ const getAllOrders = async (req, res) => {
       });
     }
 
+    // Get shipment counts for all orders
+    const Shipment = require('../models/Shipment');
+    const orderIds = orders.map(order => order._id);
+    const shipmentCounts = await Shipment.aggregate([
+      { $match: { orderId: { $in: orderIds }, userId: userId } },
+      { $group: { _id: '$orderId', count: { $sum: 1 } } }
+    ]);
+
+    // Create a map of orderId to shipment count
+    const shipmentCountMap = {};
+    shipmentCounts.forEach(item => {
+      shipmentCountMap[item._id.toString()] = item.count;
+    });
+
+    // Add shipment count to each order
+    const ordersWithShipments = orders.map(order => ({
+      ...order.toObject(),
+      shipmentCount: shipmentCountMap[order._id.toString()] || 0
+    }));
+
     // Success response
     res.status(200).json({
       success: true,
@@ -186,7 +210,7 @@ const getAllOrders = async (req, res) => {
       totalCount,
       currentPage: pageNum,
       totalPages: Math.ceil(totalCount / limitNum),
-      orders,
+      orders: ordersWithShipments,
     });
   } catch (error) {
     console.error("Error fetching orders:", error);
@@ -368,7 +392,7 @@ module.exports = { getAllOrders };
 // };
 
 
-// Get order by ID (user-specific)
+// Get order by ID (user-specific) with shipment information
 const getOrderById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -384,9 +408,23 @@ const getOrderById = async (req, res) => {
       });
     }
 
+    // Get shipment information for this order
+    const Shipment = require('../models/Shipment');
+    const shipments = await Shipment.find({ orderId: id, userId })
+      .populate('shippingAddress', 'addressName fullAddress')
+      .sort({ createdAt: -1 });
+
+    const shipmentCount = shipments.length;
+    const shipmentStatuses = shipments.map(shipment => shipment.status);
+
     res.status(200).json({
       success: true,
-      order
+      order: {
+        ...order.toObject(),
+        shipmentCount,
+        shipments: shipments,
+        shipmentStatuses
+      }
     });
   } catch (error) {
     console.error('Error fetching order:', error);

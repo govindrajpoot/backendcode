@@ -95,7 +95,8 @@ exports.createShipment = async (req, res) => {
       dispatchPersonName,
       receiverName,
       notes,
-      images // Store image URLs
+      images, // Store image URLs
+      videos // Store video URLs
     });
 
     await shipment.save();

@@ -19,7 +19,8 @@ exports.createShipment = async (req, res) => {
       dispatchPersonName,
       receiverName,
       notes,
-      images = [] // Add images field to accept image URLs
+      images = [], // Add images field to accept image URLs
+      videos = [] // Add videos field to accept video URLs
     } = req.body;
 
     // Validation
@@ -62,6 +63,14 @@ exports.createShipment = async (req, res) => {
       return res.status(400).json({
         status: false,
         message: 'Images must be an array of URLs'
+      });
+    }
+
+    // Validate videos if provided
+    if (videos && !Array.isArray(videos)) {
+      return res.status(400).json({
+        status: false,
+        message: 'Videos must be an array of URLs'
       });
     }
 

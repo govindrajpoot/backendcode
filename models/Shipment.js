@@ -90,6 +90,10 @@ const shipmentSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  dispatchAddress: {
+    type: String,
+    required: true
+  },
   receiverName: {
     type: String,
     required: true

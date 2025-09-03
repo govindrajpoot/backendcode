@@ -76,6 +76,7 @@ exports.createBulkShipments = async (req, res) => {
         trackingNumber,
         trackingLink,
         dispatchPersonName,
+        dispatchAddress,
         receiverName,
         notes,
         images,
@@ -83,10 +84,10 @@ exports.createBulkShipments = async (req, res) => {
       } = shipmentData;
 
       // Validation for each shipment
-      if (!shippingAddress || !courierService || !shippingCost || !numberOfBoxes || !dispatchPersonName || !receiverName) {
+      if (!shippingAddress || !courierService || !shippingCost || !numberOfBoxes || !dispatchPersonName || !dispatchAddress || !receiverName) {
         return res.status(400).json({
           status: false,
-          message: 'Each shipment must include shippingAddress, courierService, shippingCost, numberOfBoxes, dispatchPersonName, and receiverName'
+          message: 'Each shipment must include shippingAddress, courierService, shippingCost, numberOfBoxes, dispatchPersonName, dispatchAddress, and receiverName'
         });
       }
 
@@ -133,6 +134,7 @@ exports.createBulkShipments = async (req, res) => {
         trackingNumber,
         trackingLink,
         dispatchPersonName,
+        dispatchAddress,
         receiverName,
         notes,
         images, // Store image URLs

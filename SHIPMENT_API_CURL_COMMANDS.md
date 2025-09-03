@@ -25,6 +25,7 @@ curl -X POST http://localhost:5000/api/shipments \
     "shippingCost": 250,
     "numberOfBoxes": 2,
     "dispatchPersonName": "John Doe",
+    "dispatchAddress": "123 Dispatch Street, City, State 12345",
     "receiverName": "Jane Smith",
     "trackingNumber": "TRK123456789",
     "trackingLink": "https://fedex.com/track/TRK123456789",
@@ -49,6 +50,7 @@ curl -X POST http://localhost:5000/api/shipments/bulk \
         "shippingCost": 150,
         "numberOfBoxes": 1,
         "dispatchPersonName": "John Doe",
+        "dispatchAddress": "123 Dispatch Street, City, State 12345",
         "receiverName": "Jane Smith",
         "notes": "First package"
       },
@@ -58,6 +60,7 @@ curl -X POST http://localhost:5000/api/shipments/bulk \
         "shippingCost": 200,
         "numberOfBoxes": 2,
         "dispatchPersonName": "John Doe",
+        "dispatchAddress": "456 Dispatch Avenue, City, State 67890",
         "receiverName": "Mike Johnson",
         "notes": "Second package"
       }
@@ -165,6 +168,7 @@ CREATE_RESPONSE=$(curl -s -X POST $BASE_URL \
     "shippingCost": 250,
     "numberOfBoxes": 2,
     "dispatchPersonName": "John Doe",
+    "dispatchAddress": "123 Dispatch Street, City, State 12345",
     "receiverName": "Jane Smith",
     "notes": "Test shipment"
   }')
@@ -217,6 +221,7 @@ $body = @{
     shippingCost = 250
     numberOfBoxes = 2
     dispatchPersonName = "John Doe"
+    dispatchAddress = "123 Dispatch Street, City, State 12345"
     receiverName = "Jane Smith"
     notes = "Test shipment from PowerShell"
 } | ConvertTo-Json
@@ -245,7 +250,7 @@ export TOKEN="YOUR_JWT_TOKEN"
 curl -X GET http://localhost:5000/api/shipments/courier-services -H "Authorization: Bearer $TOKEN"
 
 # Create shipment
-curl -X POST http://localhost:5000/api/shipments -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"orderId":"507f1f77bcf86cd799439011","customerId":"507f1f77bcf86cd799439012","shippingAddress":"507f1f77bcf86cd799439013","courierService":"FedEx","shippingCost":250,"numberOfBoxes":2,"dispatchPersonName":"John Doe","receiverName":"Jane Smith"}'
+curl -X POST http://localhost:5000/api/shipments -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"orderId":"507f1f77bcf86cd799439011","customerId":"507f1f77bcf86cd799439012","shippingAddress":"507f1f77bcf86cd799439013","courierService":"FedEx","shippingCost":250,"numberOfBoxes":2,"dispatchPersonName":"John Doe","dispatchAddress":"123 Dispatch Street, City, State 12345","receiverName":"Jane Smith"}'
 
 # Get all shipments
 curl -X GET http://localhost:5000/api/shipments -H "Authorization: Bearer $TOKEN"
@@ -258,12 +263,13 @@ curl -X GET http://localhost:5000/api/shipments/order/507f1f77bcf86cd799439011 -
 
 ## Required Fields for Shipment Creation
 - `orderId`: Valid Order ID
-- `customerId`: Valid Customer ID  
+- `customerId`: Valid Customer ID
 - `shippingAddress`: Valid Customer Address ID
 - `courierService`: One of ['FedEx', 'UPS', 'DHL', 'USPS', 'Blue Dart', 'DTDC', 'Delhivery', 'Ecom Express', 'XpressBees']
 - `shippingCost`: Number (minimum 0)
 - `numberOfBoxes`: Number (1-200)
 - `dispatchPersonName`: String
+- `dispatchAddress`: String
 - `receiverName`: String
 
 ## Optional Fields

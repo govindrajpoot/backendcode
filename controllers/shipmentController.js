@@ -17,6 +17,7 @@ exports.createShipment = async (req, res) => {
       trackingNumber,
       trackingLink,
       dispatchPersonName,
+      dispatchAddress,
       receiverName,
       notes,
       images = [], // Add images field to accept image URLs
@@ -24,7 +25,7 @@ exports.createShipment = async (req, res) => {
     } = req.body;
 
     // Validation
-    if (!orderId || !customerId || !shippingAddress || !courierService || !shippingCost || !numberOfBoxes || !dispatchPersonName || !receiverName) {
+    if (!orderId || !customerId || !shippingAddress || !courierService || !shippingCost || !numberOfBoxes || !dispatchPersonName || !receiverName || !dispatchAddress) {
       return res.status(400).json({
         status: false,
         message: 'Missing required fields'
@@ -93,6 +94,7 @@ exports.createShipment = async (req, res) => {
       trackingNumber,
       trackingLink,
       dispatchPersonName,
+      dispatchAddress,
       receiverName,
       notes,
       images, // Store image URLs

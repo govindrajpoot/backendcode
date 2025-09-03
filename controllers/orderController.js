@@ -185,9 +185,10 @@ const getAllOrders = async (req, res) => {
 
     // Get shipment counts for all orders
     const Shipment = require('../models/Shipment');
+    const mongoose = require('mongoose');
     const orderIds = orders.map(order => order._id);
     const shipmentCounts = await Shipment.aggregate([
-      { $match: { orderId: { $in: orderIds }, userId: userId } },
+      { $match: { orderId: { $in: orderIds }, userId: new mongoose.Types.ObjectId(userId) } },
       { $group: { _id: '$orderId', count: { $sum: 1 } } }
     ]);
 

@@ -112,3 +112,10 @@ exports.getUserProfile = async (req, res) => {
     });
   }
 };
+
+module.exports = {
+  signup: exports.signup,
+  login: exports.login,
+  getAllUsers: exports.getAllUsers,
+  getUserProfile: exports.getUserProfile
+};

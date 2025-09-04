@@ -47,11 +47,14 @@ const createOrder = async (req, res) => {
     
     const orderNumber = `${day}${month}${year}${hours}${minutes}${seconds}${milliseconds}`;
 
-    // Create new order with user association
+    // Get first 3 letters of customer name in lowercase
+    const customerNamePrefix = customer.name.substring(0, 3).toLowerCase();
+
+    // Create new order with user association and prefixed order number
     const newOrder = new Order({
       customerId,
       userId,
-      orderNumber,
+      orderNumber: `${customerNamePrefix}-${orderNumber}`,
       productInformation,
       quantity: quantity || 1,
       numberOfBoxes: numberOfBoxes || 1,
